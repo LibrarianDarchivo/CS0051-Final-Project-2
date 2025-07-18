@@ -16,12 +16,17 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 - Note: You can press `CTRL + L` to "clear" the terminal. Makes it easier to read. (All it does is move the cursor down a few lines lmao)
 
 1. Open terminal and type in the following:
+
   `mkdir pusoy_clash`
+
   `cd pusoy_clash`
+
 2. To create the two files: `server` and `client`
+
   `nano server.cpp`
 
   ∟ After you paste in the code, do `CTRL + O` then `ENTER` to save the file and `CTRL + X` to exit
+
   ∟ Do the same for the next file
 
   `client.cpp`

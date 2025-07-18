@@ -38,11 +38,15 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 1. Open terminal and do the following:
 
   **1. For server terminal:**
+
     `cd pusoy_clash`
+
     `g++ server.cpp -o server -pthread`
 
   **2. For client terminal**
+
     `cd pusoy_clash`
+
     `g++ client.cpp -o client -pthread`
 
 - Note: You need only run the server.cpp once for the **1 server terminal**. For the client terminals, the program will not begin unless **4 players are connected**, meaning you need to have 4 seperate terminals running with client.cpp to start the program.

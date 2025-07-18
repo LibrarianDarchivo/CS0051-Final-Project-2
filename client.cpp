@@ -1,85 +1,40 @@
-#ifdef _WIN32 // For Windows
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-#else // Ubuntu, etc.
-    #include <unistd.h>
-    #include <arpa/inet.h>
-    #include <sys/socket.h>
-#endif
-
 #include <iostream>
+#include <unistd.h>
+#include <arpa/inet.h>
 #include <string>
-#include <thread>
-#include <chrono>
-#include <cstring>
 using namespace std;
 
 const int PORT = 12345;
-const string SERVER_IP = "192.168.254.143"; // Change to your server's IP
-
-// Receive and print server messages continuously
-void receiveMessages(int socket) {
-    char buffer[1024];
-    while (true) {
-        memset(buffer, 0, sizeof(buffer));
-        int bytesReceived = recv(socket, buffer, sizeof(buffer), 0);
-        if (bytesReceived <= 0) {
-            cout << "Disconnected from server." << endl;
-            break;
-        }
-        cout << string(buffer, bytesReceived);
-    }
-}
 
 int main() {
-#ifdef _WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
+    int sock = 0;
+    struct sockaddr_in serv_addr;
 
-    // Create client socket
-    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientSocket < 0) {
-        cerr << "Failed to create socket." << endl;
-        return 1;
-    }
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
 
-    sockaddr_in serverAddr{};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(PORT);
-
-    // Convert IP string to binary
-    if (inet_pton(AF_INET, SERVER_IP.c_str(), &serverAddr.sin_addr) <= 0) {
-        cerr << "Invalid IP address." << endl;
-        return 1;
-    }
-
-    // Connect to the server
-    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        cerr << "Failed to connect to server." << endl;
-        return 1;
-    }
-
-    // Program asks player's name
-    string playerName;
     cout << "Enter your name: ";
-    getline(cin, playerName);
-    send(clientSocket, playerName.c_str(), playerName.length(), 0);
+    string name;
+    getline(cin, name);
 
-    // Starts thread to listen to server messages
-    thread receiver(receiveMessages, clientSocket);
+    inet_pton(AF_INET, "192.168.254.143", &serv_addr.sin_addr); // Replace IP if needed
 
-    // Wait for the game to finish
-    receiver.join();
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        cerr << "Connection failed\n";
+        return 1;
+    }
 
-    // End connection
-#ifdef _WIN32
-    closesocket(clientSocket);
-    WSACleanup();
-#else
-    close(clientSocket);
-#endif
+    send(sock, name.c_str(), name.size(), 0);
 
+    char buffer[1024];
+    while (true) {
+        int valread = read(sock, buffer, sizeof(buffer) - 1);
+        if (valread <= 0) break;
+        buffer[valread] = '\0';
+        cout << buffer;
+    }
+
+    close(sock);
     return 0;
 }

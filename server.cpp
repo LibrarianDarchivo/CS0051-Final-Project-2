@@ -1,123 +1,157 @@
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
+    typedef int socklen_t;
+#else
+    #include <unistd.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+#endif
+
 #include <iostream>
 #include <vector>
 #include <string>
 #include <thread>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <cstdlib>
-#include <ctime>
+#include <mutex>
 #include <algorithm>
+#include <random>
+#include <map>
 using namespace std;
 
-const int PORT = 12345;
-const int MAX_CLIENTS = 4;
+#define PORT 8080
+#define MAX_PLAYERS 4
 
-vector<int> client_sockets;
-vector<string> playerNames(MAX_CLIENTS);
-vector<int> playerScores(MAX_CLIENTS, 0);
+vector<SOCKET> clients;
+vector<string> playerNames;
+mutex mtx;
 
-void broadcast(const string &message) {
-    for (int sock : client_sockets) {
-        send(sock, message.c_str(), message.size(), 0);
+// Broadcast message to all clients
+void broadcast(const string& message) {
+    for (SOCKET client : clients) {
+        send(client, message.c_str(), message.size(), 0);
     }
 }
 
-void handleGame() {
-    srand(time(0));
-    string startMsg = "\n=== Pusoy Clash Game Simulation ===\n";
-    broadcast(startMsg);
-    sleep(1);
+// Handle client connection
+void handleClient(SOCKET clientSocket) {
+    char nameBuffer[100] = {0};
+    recv(clientSocket, nameBuffer, sizeof(nameBuffer), 0);
 
-    for (int round = 1; round <= 3; ++round) {
-        broadcast("\n--- Starting Round " + to_string(round) + " ---\n");
-        vector<int> cards(MAX_CLIENTS);
+    lock_guard<mutex> lock(mtx);
+    clients.push_back(clientSocket);
+    playerNames.push_back(nameBuffer);
+    cout << nameBuffer << " has joined the game.\n";
 
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            cards[i] = rand() % 13 + 2;
-            broadcast(playerNames[i] + " draws a card: " + to_string(cards[i]) + "\n");
-            sleep(1);
-        }
-
-        int maxCard = *max_element(cards.begin(), cards.end());
-        vector<int> winners;
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            if (cards[i] == maxCard) {
-                winners.push_back(i);
-            }
-        }
-
-        if (winners.size() == 1) {
-            playerScores[winners[0]]++;
-            broadcast("\nRound " + to_string(round) + " winner: " + playerNames[winners[0]] +
-                      " with card " + to_string(maxCard) + "!\n");
-        } else {
-            broadcast("\nRound " + to_string(round) + " is a tie!\n");
-        }
-        sleep(2);
-    }
-
-    broadcast("\n=== Final Scores ===\n");
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        broadcast(playerNames[i] + ": " + to_string(playerScores[i]) + " points\n");
-    }
-
-    int maxScore = *max_element(playerScores.begin(), playerScores.end());
-    vector<int> finalWinners;
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        if (playerScores[i] == maxScore) {
-            finalWinners.push_back(i);
-        }
-    }
-
-    if (finalWinners.size() == 1) {
-        broadcast("\n" + playerNames[finalWinners[0]] + " won with " +
-                  to_string(maxScore) + " points!\n");
-    } else {
-        broadcast("\nIt's a tie between:\n");
-        for (int i : finalWinners) {
-            broadcast("- " + playerNames[i] + "\n");
-        }
-    }
+    // Notify all clients about the new player
+    string joinMsg = nameBuffer;
+    joinMsg += " has joined the game.\n";
+    broadcast(joinMsg);
 }
 
 int main() {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int opt = 1;
-    socklen_t addrlen = sizeof(address);
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
 
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(PORT);
-    bind(server_fd, (struct sockaddr *)&address, sizeof(address));
-    listen(server_fd, MAX_CLIENTS);
-
-    cout << "Server started on port " << PORT << ". Waiting for players...\n";
-
-    while (client_sockets.size() < MAX_CLIENTS) {
-        new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen);
-
-        char nameBuffer[1024] = {0};
-        read(new_socket, nameBuffer, sizeof(nameBuffer));
-        string playerName(nameBuffer);
-
-        client_sockets.push_back(new_socket);
-        playerNames[client_sockets.size() - 1] = playerName;
-
-        string joinMsg = playerName + " has joined the game!\n";
-        cout << joinMsg;
-        broadcast(joinMsg);
+    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == INVALID_SOCKET) {
+        cerr << "Socket creation failed.\n";
+        return 1;
     }
 
-    broadcast("\nAll players connected. Game is starting!\n");
-    handleGame();
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(PORT);
 
-    for (int sock : client_sockets) close(sock);
-    close(server_fd);
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        cerr << "Bind failed.\n";
+        return 1;
+    }
+
+    listen(serverSocket, MAX_PLAYERS);
+    cout << "Server started on port " << PORT << ". Waiting for players...\n";
+
+    vector<thread> threads;
+
+    // Accept connections until we have MAX_PLAYERS
+    while (clients.size() < MAX_PLAYERS) {
+        sockaddr_in clientAddr;
+        socklen_t clientSize = sizeof(clientAddr);
+        SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientSize);
+        if (clientSocket != INVALID_SOCKET) {
+            threads.emplace_back(handleClient, clientSocket);
+        }
+    }
+
+    // Wait for all threads to complete
+    for (auto& t : threads) t.join();
+
+    broadcast("All players connected. Game is starting!\n\n");
+
+    map<int, int> scores;
+    for (int round = 1; round <= 3; ++round) {
+        vector<int> cards;
+        string roundMsg = "--- Starting Round " + to_string(round) + " ---\n";
+
+        // Generate and announce cards
+        for (int i = 0; i < MAX_PLAYERS; ++i) {
+            int card = rand() % 14 + 1;
+            cards.push_back(card);
+            roundMsg += playerNames[i] + " draws a card: " + to_string(card) + "\n";
+        }
+
+        // Find winner for the round
+        int maxCard = *max_element(cards.begin(), cards.end());
+        vector<int> winners;
+        for (int i = 0; i < MAX_PLAYERS; ++i) {
+            if (cards[i] == maxCard) winners.push_back(i);
+        }
+
+        if (winners.size() == 1) {
+            scores[winners[0]]++;
+            roundMsg += "\nRound " + to_string(round) + " winner: " + playerNames[winners[0]] + " with card " + to_string(maxCard) + "!\n\n";
+        } else {
+            roundMsg += "\nRound " + to_string(round) + " is a tie!\n\n";
+        }
+
+        broadcast(roundMsg);
+    }
+
+    // Final score summary
+    string finalMsg = "=== Final Scores ===\n";
+    int highestScore = 0;
+    int winnerIndex = -1;
+    for (int i = 0; i < MAX_PLAYERS; ++i) {
+        finalMsg += playerNames[i] + ": " + to_string(scores[i]) + " points\n";
+        if (scores[i] > highestScore) {
+            highestScore = scores[i];
+            winnerIndex = i;
+        }
+    }
+
+    finalMsg += "\n";
+    if (winnerIndex != -1) {
+        finalMsg += playerNames[winnerIndex] + " won with " + to_string(highestScore) + " points!\n";
+    } else {
+        finalMsg += "It's a tie!\n";
+    }
+
+    broadcast(finalMsg);
+
+    // Close sockets
+    for (SOCKET client : clients) {
+        closesocket(client);
+    }
+    closesocket(serverSocket);
+
+#ifdef _WIN32
+    WSACleanup();
+#endif
+
     return 0;
 }
-
-rizz

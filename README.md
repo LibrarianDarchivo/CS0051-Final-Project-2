@@ -21,7 +21,7 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
   `cd pusoy_clash`
 
-   *`mkdir` creates a new directory called **pusoy_clash** and uses that directory using `cd`*
+   ***mkdir** creates a new directory called **pusoy_clash** and uses that directory using **cd***
 
 2. To create the two files: `server` and `client`
 

@@ -41,16 +41,16 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
 ### To run (compile) files
 
-1. Open terminal and do the following:
+Open terminal and do the following:
 
-  **1. For server terminal:**
+**1. For server terminal:**
 
    ```
    cd pusoy_clash
    g++ server.cpp -o server -pthread
    ```
 
-  **2. For client terminal**
+**2. For client terminal**
 
    ```
    cd pusoy_clash

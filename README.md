@@ -4,7 +4,9 @@
 
 ### Oracle VirtualBox VM
 1. Follow these YouTube videos on how to install Oracle VB VM.
+
    ∟ [Installing Oracle VirtualBox](https://youtu.be/homRENM8KVY?si=_LHDCBRonApBq6xM)
+
    ∟ [Configuring Ubuntu VM](https://youtu.be/xzEjychfD1Y?si=MvMcIHrPGddYxStm&t=589)
 
 Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.

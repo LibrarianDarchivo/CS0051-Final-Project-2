@@ -22,7 +22,6 @@ int main() {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
 
-    // CHANGE IP if needed
     if (inet_pton(AF_INET, "192.168.254.143", &serv_addr.sin_addr) <= 0) {
         cerr << "Invalid address\n";
         return -1;
@@ -35,7 +34,11 @@ int main() {
 
     cout << "Connected to server.\n";
 
-    // Receive hand
+    cout << "Enter your name: ";
+    string name;
+    getline(cin, name);
+    send(sock, name.c_str(), name.length(), 0);
+
     int valread = read(sock, buffer, sizeof(buffer));
     if (valread > 0) {
         cout << string(buffer, valread) << endl;

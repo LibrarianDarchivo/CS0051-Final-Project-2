@@ -8,125 +8,106 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <cstring>
-
-#define PORT 12345
-#define MAX_CLIENTS 4
-
 using namespace std;
 
-// ----- Card Struct -----
-struct Card {
-    string suit;
-    string rank;
+const int PORT = 12345;
+const int MAX_CLIENTS = 4;
 
-    string toString() const {
-        return rank + " of " + suit;
-    }
-};
+vector<int> client_sockets;
+vector<string> playerNames;
 
-// ----- Generate a deck of cards -----
-vector<Card> generateDeck() {
-    vector<Card> deck;
-    vector<string> suits = {"Hearts", "Diamonds", "Clubs", "Spades"};
-    vector<string> ranks = {
-        "3", "4", "5", "6", "7", "8", "9", "10",
-        "J", "Q", "K", "A", "2"
-    };
-
-    for (const auto& suit : suits) {
-        for (const auto& rank : ranks) {
-            deck.push_back({suit, rank});
+// Basic card setup
+vector<string> generateDeck() {
+    vector<string> suits = {"♠", "♥", "♦", "♣"};
+    vector<string> ranks = {"3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"};
+    vector<string> deck;
+    for (const auto& s : suits) {
+        for (const auto& r : ranks) {
+            deck.push_back(r + s);
         }
     }
-
-    // Shuffle
-    random_device rd;
-    mt19937 g(rd());
-    shuffle(deck.begin(), deck.end(), g);
-
     return deck;
 }
 
-// ----- Send hand to client -----
-void sendHand(int socket, const vector<Card>& hand, const string& playerName) {
-    string msg = "Hello " + playerName + ", your hand:\n";
-    for (const auto& card : hand) {
-        msg += "- " + card.toString() + "\n";
+void dealCards(vector<vector<string>>& hands) {
+    vector<string> deck = generateDeck();
+    shuffle(deck.begin(), deck.end(), default_random_engine(time(0)));
+
+    hands.resize(MAX_CLIENTS);
+    for (int i = 0; i < 52; ++i) {
+        hands[i % MAX_CLIENTS].push_back(deck[i]);
     }
-    send(socket, msg.c_str(), msg.size(), 0);
 }
 
-// ----- Main -----
 int main() {
-    int server_fd, new_socket;
-    sockaddr_in address;
-    int opt = 1;
-    int addrlen = sizeof(address);
-    vector<int> client_sockets;
-    vector<string> playerNames;
-
-    // Create socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == 0) {
-        perror("Socket failed");
+        cerr << "Socket creation error\n";
         exit(EXIT_FAILURE);
     }
 
-    // Set socket options
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
-
-    // Bind
+    sockaddr_in address;
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (sockaddr*)&address, sizeof(address)) < 0) {
-        perror("Bind failed");
-        exit(EXIT_FAILURE);
-    }
+    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
+    listen(server_fd, MAX_CLIENTS);
+    cout << "Server started on port " << PORT << endl;
 
-    // Listen
-    if (listen(server_fd, MAX_CLIENTS) < 0) {
-        perror("Listen failed");
-        exit(EXIT_FAILURE);
-    }
-
-    cout << "Server started on port " << PORT << ". Waiting for players...\n";
-
-    // Accept clients
+    // Accept all players
     while (client_sockets.size() < MAX_CLIENTS) {
-        new_socket = accept(server_fd, (sockaddr*)&address, (socklen_t*)&addrlen);
-        if (new_socket < 0) {
-            perror("Accept failed");
-            exit(EXIT_FAILURE);
+        int new_socket = accept(server_fd, nullptr, nullptr);
+        if (new_socket >= 0) {
+            client_sockets.push_back(new_socket);
+            char name_buf[100] = {0};
+            read(new_socket, name_buf, 100);
+            playerNames.push_back(string(name_buf));
+            cout << "Player connected: " << name_buf << endl;
+        }
+    }
+
+    cout << "All players connected. Game is starting!\n";
+
+    // Deal cards
+    vector<vector<string>> hands;
+    dealCards(hands);
+
+    // Send cards to players
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        string hand = "Your hand:\n";
+        for (const string& card : hands[i]) {
+            hand += card + " ";
+        }
+        hand += "\n";
+        send(client_sockets[i], hand.c_str(), hand.size(), 0);
+    }
+
+    // Begin simple turn-based loop
+    int currentPlayer = 0;
+    while (true) {
+        string turnMsg = "It's your turn. Enter a card to play:\n";
+        send(client_sockets[currentPlayer], turnMsg.c_str(), turnMsg.size(), 0);
+
+        char buffer[1024] = {0};
+        int valread = read(client_sockets[currentPlayer], buffer, 1024);
+        if (valread <= 0) {
+            cout << playerNames[currentPlayer] << " disconnected.\n";
+            break;
         }
 
-        // Receive player name
-        char nameBuffer[100] = {0};
-        int nameLen = read(new_socket, nameBuffer, sizeof(nameBuffer));
-        string playerName = string(nameBuffer, nameLen);
+        string playedCard(buffer, valread);
+        string broadcast = playerNames[currentPlayer] + " played: " + playedCard + "\n";
 
-        client_sockets.push_back(new_socket);
-        playerNames.push_back(playerName);
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (i != currentPlayer) {
+                send(client_sockets[i], broadcast.c_str(), broadcast.size(), 0);
+            }
+        }
 
-        cout << "Player " << client_sockets.size() << " connected as \"" << playerName << "\"\n";
-    }
-
-    cout << "All players connected. Dealing cards...\n";
-
-    // Generate and deal deck
-    vector<Card> deck = generateDeck();
-
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        vector<Card> hand(deck.begin() + (i * 13), deck.begin() + (i + 1) * 13);
-        sendHand(client_sockets[i], hand, playerNames[i]);
-    }
-
-    cout << "Cards sent. Game setup complete.\n";
-
-    // Close all client sockets after sending hands (for now)
-    for (int sock : client_sockets) {
-        close(sock);
+        currentPlayer = (currentPlayer + 1) % MAX_CLIENTS;
     }
 
     close(server_fd);

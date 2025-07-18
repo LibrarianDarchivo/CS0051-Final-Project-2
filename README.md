@@ -35,9 +35,9 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
   ∟ Do the same for the next file
 
-      ```
+      
       nano client.cpp
-      ```
+      
 
 ### To run (compile) files
 

@@ -39,9 +39,10 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
   **1. For server terminal:**
 
-    `cd pusoy_clash`
-
-    `g++ server.cpp -o server -pthread`
+   ```
+   cd pusoy_clash
+   g++ server.cpp -o server -pthread
+   ```
 
   **2. For client terminal**
 

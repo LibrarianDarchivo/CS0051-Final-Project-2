@@ -27,14 +27,17 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
 2. To create the two files: `server` and `client`
 
+   ```
    nano server.cpp
+   ```
 
   ∟ After you paste in the code, do `CTRL + O` then `ENTER` to save the file and `CTRL + X` to exit
 
   ∟ Do the same for the next file
 
-      
+   ```
    nano client.cpp
+   ```
       
 
 ### To run (compile) files

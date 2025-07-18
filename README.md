@@ -17,21 +17,27 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
 1. Open terminal and type in the following:
 
-  `mkdir pusoy_clash`
-
-  `cd pusoy_clash`
+   ```
+   mkdir pusoy_clash
+   
+   cd pusoy_clash
+   ```
 
    ***mkdir** creates a new directory called **pusoy_clash** and uses that directory using **cd***
 
 2. To create the two files: `server` and `client`
 
-  `nano server.cpp`
+   ```
+   nano server.cpp
+   ```
 
   ∟ After you paste in the code, do `CTRL + O` then `ENTER` to save the file and `CTRL + X` to exit
 
   ∟ Do the same for the next file
 
-  `nano client.cpp`
+   ```
+   nano client.cpp
+   ```
 
 ### To run (compile) files
 
@@ -46,9 +52,10 @@ Note: Select **24.02.2 LTS** in the **Ubuntu Website**. It's what I used.
 
   **2. For client terminal**
 
-    `cd pusoy_clash`
-
-    `g++ client.cpp -o client -pthread`
+   ```
+   cd pusoy_clash
+   g++ client.cpp -o client -pthread
+   ```
 
 - Note: You need only run the server.cpp once for the **1 server terminal**. For the client terminals, the program will not begin unless **4 players are connected**, meaning you need to have 4 seperate terminals running with client.cpp to start the program.
 
